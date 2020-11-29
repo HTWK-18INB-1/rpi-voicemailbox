@@ -4,7 +4,7 @@ all:
 	make -j 4 -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 install:
-	ln -sf rpivmb.ko /lib/modules/$(shell uname -r)/kernel/drivers/rpivmb.ko
+	cp rpivmb.ko /lib/modules/$(shell uname -r)/kernel/drivers/
 	grep -qxF "rpivmb" /etc/modules || echo "rpivmb" >> /etc/modules
 
 clean:
