@@ -1,4 +1,4 @@
-Copyright (c) 2020 Dinesh Salunke
+Copyright (c) 2020 Vivien Richter
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
