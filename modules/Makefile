@@ -1,3 +1,7 @@
+define MODULE_CONF
+# Raspberry Pi voicemailbox drivers\nrpivmb
+endef
+
 obj-m += rpivmb.o
 
 all:
@@ -5,7 +9,8 @@ all:
 
 install:
 	cp rpivmb.ko /lib/modules/$(shell uname -r)/kernel/drivers/
-	grep -qxF "rpivmb" /etc/modules || echo "rpivmb" >> /etc/modules
+	echo "$(MODULE_CONF)" > /etc/modules-load.d/rpivmb.conf
+	depmod
 
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean

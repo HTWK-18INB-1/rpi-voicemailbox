@@ -1,5 +1,5 @@
 #!/bin/bash
-"\033[1mDeactivating unnecessary daemons..\033[0m"
+echo -e "\033[1mDeactivating unnecessary daemons..\033[0m"
 sudo systemctl disable keyboard-setup.service
 sudo systemctl disable dphys-swapfile.service
 sudo systemctl disable avahi-daemon.service
