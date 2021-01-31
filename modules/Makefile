@@ -1,15 +1,15 @@
 define MODULE_CONF
-# Raspberry Pi voicemailbox drivers\nrpivmb
+# Raspberry Pi voicemailbox drivers\nrpi_button
 endef
 
-obj-m += rpivmb.o
+obj-m += rpi_button.o
 
 all:
 	make -j 4 -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 install:
-	cp rpivmb.ko /lib/modules/$(shell uname -r)/kernel/drivers/
-	echo "$(MODULE_CONF)" > /etc/modules-load.d/rpivmb.conf
+	cp rpi_button.ko /lib/modules/$(shell uname -r)/kernel/drivers/
+	echo "$(MODULE_CONF)" > /etc/modules-load.d/rpi_button.conf
 	depmod
 
 clean:
