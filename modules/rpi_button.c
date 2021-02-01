@@ -2,17 +2,120 @@
  * RPi button driver
  */
 #include <linux/module.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
 
-MODULE_AUTHOR("Vivien Richter <vivien-richter@outlook.de>");
 MODULE_DESCRIPTION("RPi button driver");
-MODULE_LICENSE("MIT");
-MODULE_VERSION("0.1.0");
+MODULE_AUTHOR("Vivien Richter <vivien-richter@outlook.de>");
+MODULE_LICENSE("Dual MIT/GPL");
+MODULE_VERSION("0.2.0");
 
-int init_module(void) {
-	pr_alert("Button ready.\n");
+// Configuration
+#define GPIO_BUTTON 16
+#define DEVICE_NAME "button"
+
+/**
+ * Defines custom printk messages
+ */
+#undef pr_fmt
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
+/**
+ * Holds the MAJOR and MINOR numbers of the device inode
+ */
+dev_t device;
+
+/**
+ * Character device class pointer
+ */
+static struct class *cdevcp;
+
+/**
+ * Character device pointer
+ */
+struct cdev *cdevp;
+
+/**
+ * Opens the device
+ */
+static int device_open(struct inode *inode, struct file  *fp) {
 	return 0;
 }
 
+/**
+ * Reads from the device
+ */
+static ssize_t device_read(struct file *fp, char *buffer, size_t length, loff_t *offset) {
+	return 0;
+}
+
+/**
+ * Releases the device
+ */
+static int device_close(struct inode *inode, struct file *fp) {
+	return 0;
+}
+
+// Registers character device handlers
+static struct file_operations fops = {
+	.owner = THIS_MODULE,
+	.open = device_open,
+	.read = device_read,
+	.release = device_close
+};
+
+/**
+ * Driver initialization
+ */
+int init_module(void) {
+	int allocChrDevRegionResult = alloc_chrdev_region(&device, 0, 1, KBUILD_MODNAME);
+	if(allocChrDevRegionResult < 0) {
+        pr_err("alloc_chrdev_region returned: %d\n", allocChrDevRegionResult);
+        return -1;
+    } else {
+		pr_info("Loaded, MAJOR: %d, MINOR: %d\n", MAJOR(device), MINOR(device));
+		// Create the character device class
+		if ((cdevcp = class_create(THIS_MODULE, KBUILD_MODNAME)) == NULL) {
+			unregister_chrdev_region(device, 1);
+			pr_err("class_create failed.\n");
+			return -1;
+		} else {
+			// Create the character device
+			if (device_create(cdevcp, NULL, device, NULL, DEVICE_NAME) == NULL) {
+				class_destroy(cdevcp);
+				unregister_chrdev_region(device, 1);
+				pr_err("device_create failed.\n");
+				return -1;
+			} else {
+				// Initialize character device
+				cdev_init(cdevp, &fops);
+				// Add the character device to the system
+				int addChrDevResult = cdev_add(cdevp, device, 1);
+				if (addChrDevResult < 0) {
+					device_destroy(cdevcp, device);
+			    	class_destroy(cdevcp);
+			    	unregister_chrdev_region(device, 1);
+					pr_err("cdev_add returned: %d\n", addChrDevResult);
+					return -1;
+				} else {
+					// Ready
+					return 0;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Driver destructor
+ */
 void cleanup_module(void) {
-	pr_alert("Button end.\n");
+	if (cdevp != NULL) cdev_del(cdevp);
+	if (cdevcp != NULL) {
+		device_destroy(cdevcp, device);
+		class_destroy(cdevcp);
+	}
+	unregister_chrdev_region(device, 1);
+	pr_info("Unloaded.\n");
+	return;
 }
