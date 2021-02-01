@@ -8,7 +8,7 @@
 MODULE_DESCRIPTION("RPi button driver");
 MODULE_AUTHOR("Vivien Richter <vivien-richter@outlook.de>");
 MODULE_LICENSE("Dual MIT/GPL");
-MODULE_VERSION("0.2.0");
+MODULE_VERSION("0.2.1");
 
 // Configuration
 #define GPIO_BUTTON 16
@@ -23,7 +23,7 @@ MODULE_VERSION("0.2.0");
 /**
  * Holds the MAJOR and MINOR numbers of the device inode
  */
-dev_t device;
+static dev_t device;
 
 /**
  * Character device class pointer
@@ -31,9 +31,9 @@ dev_t device;
 static struct class *cdevcp;
 
 /**
- * Character device pointer
+ * Character device structure
  */
-struct cdev *cdevp;
+static struct cdev cdevs;
 
 /**
  * Opens the device
@@ -73,13 +73,14 @@ int init_module(void) {
         pr_err("alloc_chrdev_region returned: %d\n", allocChrDevRegionResult);
         return -1;
     } else {
-		pr_info("Loaded, MAJOR: %d, MINOR: %d\n", MAJOR(device), MINOR(device));
+		pr_debug("Character device region allocated, MAJOR: %d, MINOR: %d.\n", MAJOR(device), MINOR(device));
 		// Create the character device class
 		if ((cdevcp = class_create(THIS_MODULE, KBUILD_MODNAME)) == NULL) {
 			unregister_chrdev_region(device, 1);
 			pr_err("class_create failed.\n");
 			return -1;
 		} else {
+			pr_debug("Character device class created.\n");
 			// Create the character device
 			if (device_create(cdevcp, NULL, device, NULL, DEVICE_NAME) == NULL) {
 				class_destroy(cdevcp);
@@ -87,10 +88,12 @@ int init_module(void) {
 				pr_err("device_create failed.\n");
 				return -1;
 			} else {
+				pr_debug("Character device created.\n");
 				// Initialize character device
-				cdev_init(cdevp, &fops);
+				cdev_init(&cdevs, &fops);
+				pr_debug("Character device initialized.\n");
 				// Add the character device to the system
-				int addChrDevResult = cdev_add(cdevp, device, 1);
+				int addChrDevResult = cdev_add(&cdevs, device, 1);
 				if (addChrDevResult < 0) {
 					device_destroy(cdevcp, device);
 			    	class_destroy(cdevcp);
@@ -98,6 +101,7 @@ int init_module(void) {
 					pr_err("cdev_add returned: %d\n", addChrDevResult);
 					return -1;
 				} else {
+					pr_info("Registered as /dev/%s\n", DEVICE_NAME);
 					// Ready
 					return 0;
 				}
@@ -110,11 +114,9 @@ int init_module(void) {
  * Driver destructor
  */
 void cleanup_module(void) {
-	if (cdevp != NULL) cdev_del(cdevp);
-	if (cdevcp != NULL) {
-		device_destroy(cdevcp, device);
-		class_destroy(cdevcp);
-	}
+	cdev_del(&cdevs);
+	device_destroy(cdevcp, device);
+	class_destroy(cdevcp);
 	unregister_chrdev_region(device, 1);
 	pr_info("Unloaded.\n");
 	return;
