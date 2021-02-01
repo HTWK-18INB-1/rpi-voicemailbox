@@ -4,15 +4,20 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
+#include <linux/uaccess.h>
+#include <linux/gpio.h>
 
 MODULE_DESCRIPTION("RPi button driver");
 MODULE_AUTHOR("Vivien Richter <vivien-richter@outlook.de>");
 MODULE_LICENSE("Dual MIT/GPL");
-MODULE_VERSION("0.2.1");
+MODULE_VERSION("0.3.0");
 
 // Configuration
 #define GPIO_BUTTON 16
 #define DEVICE_NAME "button"
+#define BUTTON_STATE_ON "ON\n"
+#define BUTTON_STATE_OFF "OFF\n"
+#define BUTTON_DEFAULT_VALUE 0
 
 /**
  * Defines custom printk messages
@@ -39,20 +44,48 @@ static struct cdev cdevs;
  * Opens the device
  */
 static int device_open(struct inode *inode, struct file  *fp) {
-	return 0;
+	int gpioRequestResult;
+	if((gpioRequestResult = gpio_request(GPIO_BUTTON, DEVICE_NAME)) < 0) {
+        pr_err("gpio_request returned: %d\n", gpioRequestResult);
+        return -1;
+    } else {
+		return 0;
+	}
 }
 
 /**
  * Reads from the device
  */
 static ssize_t device_read(struct file *fp, char *buffer, size_t length, loff_t *offset) {
-	return 0;
+	int gpioDirectionResult;
+	char *buttonState;
+	size_t buttonStateLength;
+	int toCopy;
+	unsigned long failedToCopy;
+	// Set button GPIO as an input
+	if((gpioDirectionResult = gpio_direction_output(GPIO_BUTTON, BUTTON_DEFAULT_VALUE)) < 0) {
+		pr_err("gpio_direction_output returned: %d\n", gpioDirectionResult);
+		return -1;
+	} else {
+		// Get the button state
+		if (gpio_get_value(GPIO_BUTTON) == 0) {
+			buttonState = BUTTON_STATE_OFF;
+		} else {
+			buttonState = BUTTON_STATE_ON;
+		}
+		// Returns the state
+		buttonStateLength = strlen(buttonState) + 1;
+		toCopy = min(length, buttonStateLength);
+		failedToCopy = copy_to_user(buffer, buttonState, toCopy);
+		return toCopy - failedToCopy;
+	}
 }
 
 /**
  * Releases the device
  */
 static int device_close(struct inode *inode, struct file *fp) {
+	gpio_free(GPIO_BUTTON);
 	return 0;
 }
 
@@ -68,8 +101,9 @@ static struct file_operations fops = {
  * Driver initialization
  */
 int init_module(void) {
-	int allocChrDevRegionResult = alloc_chrdev_region(&device, 0, 1, KBUILD_MODNAME);
-	if(allocChrDevRegionResult < 0) {
+	int allocChrDevRegionResult;
+	int addChrDevResult;
+	if((allocChrDevRegionResult = alloc_chrdev_region(&device, 0, 1, KBUILD_MODNAME)) < 0) {
         pr_err("alloc_chrdev_region returned: %d\n", allocChrDevRegionResult);
         return -1;
     } else {
@@ -93,8 +127,7 @@ int init_module(void) {
 				cdev_init(&cdevs, &fops);
 				pr_debug("Character device initialized.\n");
 				// Add the character device to the system
-				int addChrDevResult = cdev_add(&cdevs, device, 1);
-				if (addChrDevResult < 0) {
+				if ((addChrDevResult = cdev_add(&cdevs, device, 1)) < 0) {
 					device_destroy(cdevcp, device);
 			    	class_destroy(cdevcp);
 			    	unregister_chrdev_region(device, 1);
